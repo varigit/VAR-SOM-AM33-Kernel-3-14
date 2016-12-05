@@ -217,7 +217,9 @@ static void am43xx_restore_context(void)
 
 int am33xx_rtc_only_idle(long unsigned int unused)
 {
+#ifdef CONFIG_RTC_DRV_OMAP
 	omap_rtc_power_off_program();
+#endif
 	am33xx_do_wfi_sram(&susp_params);
 	return 0;
 }
@@ -341,6 +343,7 @@ static int am33xx_pm_begin(suspend_state_t state)
 
 	cpu_idle_poll_ctrl(true);
 
+#ifdef CONFIG_RTC_DRV_OMAP
 	if (state == PM_SUSPEND_MEM && enable_off_mode && rtc_magic_val) {
 		rtc_write_scratch(omap_rtc, RTC_SCRATCH_MAGIC_REG,
 				  rtc_magic_val);
@@ -348,7 +351,10 @@ static int am33xx_pm_begin(suspend_state_t state)
 	} else {
 		rtc_only_idle = 0;
 	}
-
+#else
+	rtc_only_idle = 0;
+#endif
+	
 	switch (state) {
 	case PM_SUSPEND_MEM:
 		am33xx_pm->ipc.reg1	= IPC_CMD_DS0;
@@ -390,9 +396,10 @@ static void am33xx_pm_end(void)
 		writel_relaxed(1 << (retrigger_irq & 31),
 			       gic_dist_base + 0x200 + retrigger_irq / 32 * 4);
 
+#ifdef CONFIG_RTC_DRV_OMAP
 	if (rtc_only_idle)
 		rtc_write_scratch(omap_rtc, RTC_SCRATCH_MAGIC_REG, 0);
-
+#endif
 	cpu_idle_poll_ctrl(false);
 }
 
@@ -725,7 +732,9 @@ int __init am33xx_pm_init(void)
 	susp_params.wfi_flags = 0;
 	susp_params.emif_addr_virt = am33xx_emif_base;
 	susp_params.dram_sync = am33xx_dram_sync;
+#ifdef CONFIG_RTC_DRV_OMAP
 	susp_params.rtc_base = omap_rtc_get_base_addr();
+#endif
 
 	switch (temp) {
 	case MEM_TYPE_DDR2:
@@ -790,6 +799,7 @@ int __init am33xx_pm_init(void)
 
 	pmx_dev = get_pinctrl_dev_from_devname("44e10800.pinmux");
 
+#ifdef CONFIG_RTC_DRV_OMAP
 	np = of_find_node_by_name(NULL, "rtc");
 
 	if (of_device_is_available(np)) {
@@ -806,7 +816,7 @@ int __init am33xx_pm_init(void)
 				  virt_to_phys(cpu_resume));
 	} else
 		pr_warn("PM: no-rtc available, rtc-only mode disabled.\n");
-
+#endif
 	return 0;
 
 err:
